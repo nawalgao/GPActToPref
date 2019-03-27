@@ -1,0 +1,28 @@
+"MCMC":
+	{
+		"MAP_optimize_maxiter" : 20,
+		"num_samples" : 5000,
+		"thin" : 2,
+		"burn" : 1000,
+		"epsilon" : 0.05,
+		"Lmax" : 20,
+		"verbose" : "True"
+	},
+"Prior":
+	{
+		"lengthscales" : "gpflow.priors.Gamma(1., 1.)",
+		"variance" : "gpflow.priors.Gamma(1., 1.)",
+		"linear_mean_func_A" : "gpflow.priors.Gaussian(0., 10.)",
+		"linear_mean_func_b" : "gpflow.priors.Gaussian(0.,10.)"
+	},
+"Kernels":
+	{
+		"RBF_1": "gpflow.kernels.RBF(1,ARD=False)",
+		"RBF_2": "gpflow.kernels.RBF(2,ARD=False)"
+	},
+"Contour_levels":
+	{
+		"mean_levels" : "np.linspace(0,1.)",
+		"var_levels" : "np.linspace(0,0.15)"
+	}
+}
