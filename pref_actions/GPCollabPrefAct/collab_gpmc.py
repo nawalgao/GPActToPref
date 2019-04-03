@@ -202,9 +202,7 @@ class GPCollabPrefLearnGPMC(GPCollabPrefLearn):
         self.V_h.prior =  Gaussian(0., 1.)
         
         
-        # Prior for W (weight matrix) setup
-        #self.W =  Param(np.zeros((self.num_occupants, self.num_latent_gps)))
-        #self.W.prior =  Gaussian(0., 1.) # need to think if we want to go Hiearchial?
+        self.W = Param(np.random.randn(self.num_occupants, self.num_latent_gps))
         
     
     def compile(self, session=None, graph=None, optimizer=None):
@@ -224,8 +222,9 @@ class GPCollabPrefLearnGPMC(GPCollabPrefLearn):
         Construct a tf function to compute the likelihood of collaborative GP
         \log p(Y| V_h, W, theta)
         """
-        self.W = tf.eye(num_rows = self.num_latent_gps,
-                        num_columns = self.num_latent_gps, dtype=float_type)
+        #self.W = tf.eye(num_rows = self.num_occupants,
+        #                num_columns = self.num_latent_gps, dtype=float_type)
+        
         V_h_splits = tf.split(self.V_h, num_or_size_splits = self.num_latent_gps)
         H_list = []
         for i in xrange(self.num_latent_gps):
@@ -249,25 +248,25 @@ class GPCollabPrefLearnGPMC(GPCollabPrefLearn):
         #print 'W shape:'
         #print self.W.shape
         self.U = tf.matmul(self.W, tf.transpose(self.H)) # utility function values for each occupant (self.num_occupants x self.num_x_grid)
-        print 'U shape:'
-        print self.U
+        #print 'U shape:'
+        #print self.U
         # Extract relevant element of utility function value at training points for each occupant
         concerned_mat = gather_concerned_utilities(self.U, self.rel_indices)
-        print 'concerned_mat shape:'
-        print concerned_mat
+        #print 'concerned_mat shape:'
+        #print concerned_mat
         
         
         U_cur, U_prev = tf.split(concerned_mat, num_or_size_splits=2, axis = 1)
         
         U_diff = tf.subtract(U_cur,U_prev)
-        print 'U_diff'
-        print U_diff
+        #print 'U_diff'
+        #print U_diff
         
         flatten_U_diff = tf.reshape(U_diff, [-1, 1])
-        print 'flatten_U_diff'
-        print flatten_U_diff
-        print 'y'
-        print self.Y
+        #print 'flatten_U_diff'
+        #print flatten_U_diff
+        #print 'y'
+        #print self.Y
         return tf.reduce_sum(self.likelihood.logp(flatten_U_diff, self.Y))
     
     def build_predict_h(self, Xnew, full_cov = False):
@@ -288,6 +287,7 @@ class GPCollabPrefLearnGPMC(GPCollabPrefLearn):
             var_list.append(var_i)
         
         return mu_list, var_list
+            
             
         
             
