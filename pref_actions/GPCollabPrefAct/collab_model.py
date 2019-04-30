@@ -15,27 +15,41 @@ from gpflow._settings import settings
 float_type = settings.dtypes.float_type
 
 
+def total_all_actions(concat_cur_prev_feat_list):
+    """
+    Calculate the total number of actions (taken by all the occupants)
+    """
+    shape = np.array([])
+    for l in concat_cur_prev_feat_list:
+        n = l.shape[0]
+        shape = np.append(shape, n)
+    total_shape = np.sum(shape)
+    return total_shape
+    
+
+
 class GPCollabPrefLearn(Model):
     """
     A base class for collaborative GPs based preference learning
     """
     
-    def __init__(self, concat_cur_prev_feat_mat, concat_ind_cur_prev_mat, X_grid,
+    def __init__(self, prev_ind_list, cur_ind_list, X_grid,
                  kerns_list, name = 'collaborative_pref_gps'):
         
         Model.__init__(self, name)
         
-        concat_ind_cur_prev_mat_shape = concat_ind_cur_prev_mat.shape
-        total_u_diff_all_occ = concat_ind_cur_prev_mat_shape[0]*concat_ind_cur_prev_mat_shape[1]/2
-        Y = np.ones(total_u_diff_all_occ)[:,None]
+        total_shape = total_all_actions(prev_ind_list)
+        
+        Y = np.ones(total_shape)[:,None]
         self.Y = DataHolder(Y)
         
         # Introducing Paramlist to define kernels for latent GPs H
         self.kerns_list = ParamList(kerns_list)
         
         self.X_grid = DataHolder(X_grid[:,None])
-        self.X = DataHolder(concat_cur_prev_feat_mat)
-        self.rel_indices = tf.constant(concat_ind_cur_prev_mat)
+        
+        self.prev_ind_list = prev_ind_list
+        self.cur_ind_list = cur_ind_list
         
         # define likelihood
         self.likelihood = gpflow.likelihoods.Bernoulli()

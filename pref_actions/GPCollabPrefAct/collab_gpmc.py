@@ -34,65 +34,6 @@ from .collab_model import GPCollabPrefLearn
 
 
 
-#class GPPrefLearn(GPMC):
-#    def __init__(self, X, Y, kern, likelihood,
-#                 mean_function = None, num_latent = None):
-#        
-#        """
-#        X is a data matrix, size : 2N x D
-#        Y is a data matrix, size : N X 1
-#        This is a vanilla implementation of a GP Preference learning model
-#        with non-Gaussian likelihood.
-#        {Chu, W., & Ghahramani, Z. (2005, August).
-#        Preference learning with Gaussian processes.
-#        In Proceedings of the 22nd international conference on Machine learning (pp. 137-144). ACM.}
-#        The latent function values are represented by centered 
-#        (whitened) variables, so
-#             v ~ N(0, I)
-#             f = Lv + m(x)
-#         with
-#         
-#             L L^T = K
-#             
-#        """
-#        GPMC.__init__(self, X, Y, kern, likelihood, mean_function, num_latent)
-#    
-#    
-#    def compile(self, session=None, graph=None, optimizer=None):
-#        """
-#        Before calling the standard compile function, check to see if the size
-#        of the data has changed and add parameters appropriately.
-#
-#        This is necessary because the shape of the parameters depends on the
-#        shape of the data.
-#        """
-#        if not self.num_data == self.X.shape[0]:
-#            self.num_data = self.X.shape[0]
-#            self.V = Param(np.zeros((self.num_data, self.num_latent)))
-#            self.V.prior = Gaussian(0., 1.)
-#
-#        return super(GPPrefLearn, self).compile(session=session,
-#                                         graph=graph,
-#                                         optimizer=optimizer)
-#        
-#    
-#    def build_likelihood(self):
-#        """
-#        Construct a tf function to compute the likelihood of a general GP
-#        model.
-#
-#            \log p(Y, V | theta).
-#
-#        """
-#        K = self.kern.K(self.X)
-#        L = tf.cholesky(K + tf.eye(tf.shape(self.X)[0], dtype=float_type)*settings.numerics.jitter_level)
-#        F = tf.matmul(L, self.V) + self.mean_function(self.X)
-#        
-#        F1,F2 = tf.split(F, num_or_size_splits=2)
-#        F_diff = tf.subtract(F2,F1)
-#        
-#        return tf.reduce_sum(self.likelihood.logp(F_diff, self.Y))
-
 def gen_req_action_data(action_data_matrix, X_grid):
     
     """
@@ -112,35 +53,96 @@ def gen_req_action_data(action_data_matrix, X_grid):
     return concat, indices
 
 
-def gen_rel_list_action_data(all_occ_action_data_list, X_grid):
+#def gen_rel_list_action_data(all_occ_action_data_list, X_grid):
+#    
+#    """
+#    Generate relevant data from all occupant action data list
+#    """
+#    
+#    concat_list = []
+#    indices_list = []
+#    for action_data in all_occ_action_data_list:
+#        concat_actions, indices = gen_req_action_data(action_data, X_grid)
+#        concat_list.append(concat_actions)
+#        indices_list.append(indices)
+#    return concat_list, indices_list
+#
+#
+#def gen_rel_concat_action_data(all_occ_action_data_list, X_grid):
+#    
+#    """
+#    Generate relevant data from all occupant action data list
+#    """
+#    
+#    concat_list = []
+#    indices_list = []
+#    for i, action_data in enumerate(all_occ_action_data_list):
+#        concat_actions, indices = gen_req_action_data(action_data, X_grid)
+#        #print concat_actions.shape
+#        concat_list.append(concat_actions[:,0])
+#        indices_list.append(indices[:,0])
+#        
+#    return concat_list, indices_list
     
+def occ_prev_cur_action_ind(action_data_matrix, X_grid):
     """
-    Generate relevant data from all occupant action data list
+    Inputs:
+    actions_data_matrix : action data matrix (X_prev, X_current)
+    Outputs:
+    Concatenation of [X_cur, X_prev]
+    Index of action data in X_grid
     """
-    concat_list = []
-    indices_list = []
-    for action_data in all_occ_action_data_list:
-        concat_actions, indices = gen_req_action_data(action_data, X_grid)
-        concat_list.append(concat_actions)
-        indices_list.append(indices)
-    return concat_list, indices_list
+    prev = action_data_matrix[:,0][:,None]
+    cur = action_data_matrix[:,1][:,None]
+    
+    grid_sorted = np.argsort(X_grid)
+    
+    ypos_prev = np.searchsorted(X_grid[grid_sorted], prev)
+    prev_ind = grid_sorted[ypos_prev]
+    
+    ypos_cur = np.searchsorted(X_grid[grid_sorted], cur)
+    cur_ind = grid_sorted[ypos_cur]
+    
+    return prev_ind, cur_ind
+
+def all_occ_prev_cur_act_ind(action_data_matrix_list, X_grid):
+    """
+    Inputs:
+    action_data_matrix_list : list of all actions' data matrix (num_list = number of occupants)
+    Outputs: 
+    prev_ind_list : previous feature indices list
+    cur_ind_list : current feature indices list
+    """
+    prev_ind_list = []
+    cur_ind_list = []
+    for mat in action_data_matrix_list:
+        prev_ind, cur_ind =  occ_prev_cur_action_ind(mat, X_grid)
+        prev_ind_list.append(prev_ind[:,0])
+        cur_ind_list.append(cur_ind[:,0])
+    
+    return prev_ind_list, cur_ind_list
 
 
-def gen_rel_matrix_action_data(all_occ_action_data_list, X_grid):
-    
+def select_specific_column_indices(utility_matrix, ind_list):
     """
-    Generate relevant data from all occupant action data list
+    Select specific column indices corresponding to specific row indices 
+    Inputs:
+    ind_list : list of features (previous or current) of all occupants
+    Outputs:
+    rel_tf_ind : relevant tensor : selecting specific columns from each rows of utility matrix.
     """
-    
-    same_const_shape = 2*all_occ_action_data_list[0].shape[0]
-    concat_mat = np.zeros(shape = [len(all_occ_action_data_list), same_const_shape])
-    indices_mat = np.zeros(shape = [len(all_occ_action_data_list), same_const_shape])
-    for i, action_data in enumerate(all_occ_action_data_list):
-        concat_actions, indices = gen_req_action_data(action_data, X_grid)
-        concat_mat[i,:] = concat_actions[:,0]
-        indices_mat[i,:] = indices[:,0]
-        
-    return concat_mat, indices_mat
+    total_ind_list = []
+    for i in xrange(len(ind_list)):
+        col = ind_list[i]
+        row = np.repeat(i, col.shape[0])
+        c_tf = tf.constant(col)
+        r_tf = tf.constant(row)
+        full_ind = tf.stack([r_tf, c_tf], axis=1)
+        total_ind_list.append(full_ind)
+    total_ind_tf = tf.concat(total_ind_list, 0)
+    # retrieve values by indices
+    S = tf.gather_nd(utility_matrix, total_ind_tf)
+    return S
 
 
 def gather_concerned_utilities(utility_matrix, concerned_ind_mat):
@@ -189,11 +191,10 @@ class GPCollabPrefLearnGPMC(GPCollabPrefLearn):
         # U is calculated at all of the X_grid points
         # When it comes to actions taken by each occupant, we need to find the index associated with each actions
         # actions list is the input list, each element of which is the numpy matrix representing feature value before action and after action 
-        self.concat_cur_prev_feat_mat, self.concat_ind_cur_prev_mat = gen_rel_matrix_action_data(actions_list, X_grid)
+        prev_ind_list, cur_ind_list = all_occ_prev_cur_act_ind(actions_list, X_grid)
         
         
-        GPCollabPrefLearn.__init__(self, self.concat_cur_prev_feat_mat,
-                                   self.concat_ind_cur_prev_mat, X_grid, kerns_list)
+        GPCollabPrefLearn.__init__(self, prev_ind_list, cur_ind_list, X_grid, kerns_list)
         
         # Prior for H (latent GP matrix) setup
         
@@ -229,44 +230,21 @@ class GPCollabPrefLearnGPMC(GPCollabPrefLearn):
         H_list = []
         for i in xrange(self.num_latent_gps):
             K_h_i = self.kerns_list[i].K(self.X_grid)
-            #print 'K_h_i shape:'
-            #print K_h_i.shape
             L_h_i = tf.cholesky(K_h_i + tf.eye(tf.shape(self.X_grid)[0], dtype=float_type) * 1e-4)
             H_i = tf.matmul(L_h_i, tf.transpose(V_h_splits[i])) # ---> check this... transpose is this correct?
-            #print 'V_h_splits[i] shape:'
-            #print V_h_splits[i].shape
-            #print 'transpose of V_h_splits[i] shape:'
-            #print tf.transpose(V_h_splits[i]).shape
-            #print 'H_i shape:'
-            #print H_i.shape
             H_list.append(H_i)
-            #print 'H list length:'
-            #print len(H_list)
         self.H = tf.concat(H_list, 1) # Latent GPs (self.num_latent_gps x self.num_x_grid)
-        #print 'H shape:'
-        #print H.shape
-        #print 'W shape:'
-        #print self.W.shape
+        
         self.U = tf.matmul(self.W, tf.transpose(self.H)) # utility function values for each occupant (self.num_occupants x self.num_x_grid)
-        #print 'U shape:'
-        #print self.U
+
         # Extract relevant element of utility function value at training points for each occupant
-        concerned_mat = gather_concerned_utilities(self.U, self.rel_indices)
-        #print 'concerned_mat shape:'
-        #print concerned_mat
-        
-        
-        U_cur, U_prev = tf.split(concerned_mat, num_or_size_splits=2, axis = 1)
+        U_cur = select_specific_column_indices(self.U, self.cur_ind_list)
+        U_prev = select_specific_column_indices(self.U, self.prev_ind_list)
         
         U_diff = tf.subtract(U_cur,U_prev)
-        #print 'U_diff'
-        #print U_diff
         
         flatten_U_diff = tf.reshape(U_diff, [-1, 1])
-        #print 'flatten_U_diff'
-        #print flatten_U_diff
-        #print 'y'
-        #print self.Y
+    
         return tf.reduce_sum(self.likelihood.logp(flatten_U_diff, self.Y))
     
     def build_predict_h(self, Xnew, full_cov = False):
@@ -290,9 +268,3 @@ class GPCollabPrefLearnGPMC(GPCollabPrefLearn):
             
             
         
-            
-            
-        
-        
-    
-
